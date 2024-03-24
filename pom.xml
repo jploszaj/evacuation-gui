@@ -40,7 +40,7 @@
             <dependency>
                 <groupId>com.google.guava</groupId>
                 <artifactId>guava</artifactId>
-                <version>19.0</version>
+                <version>21.0</version>
             </dependency>
         </dependencies>
     </dependencyManagement>
@@ -101,6 +101,11 @@
             <artifactId>hamcrest-junit</artifactId>
             <version>2.0.0.0</version>
         </dependency>
+        <dependency>
+            <groupId>com.googlecode.json-simple</groupId>
+            <artifactId>json-simple</artifactId>
+            <version>1.1.1</version>
+        </dependency>
     </dependencies>
 
     <build>
@@ -123,7 +128,7 @@
 
     <properties>
         <geotools.version>28.1</geotools.version>
-        <matsim.version>14.0-SNAPSHOT</matsim.version>
+        <matsim.version>14.1-SNAPSHOT-john</matsim.version>
 
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>

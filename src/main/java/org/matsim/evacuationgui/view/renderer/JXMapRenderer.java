@@ -69,7 +69,7 @@ public class JXMapRenderer extends AbstractSlippyMapRenderLayer {
 		mapViewer.setCenterPosition(new GeoPosition(controller
 				.getCenterPosition().getY(), controller.getCenterPosition()
 				.getX()));
-		mapViewer.setZoom(2);
+		mapViewer.setZoom(0); // było 2
 
 	}
 

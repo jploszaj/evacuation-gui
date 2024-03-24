@@ -29,6 +29,7 @@ import org.matsim.api.core.v01.Id;
 import org.matsim.api.core.v01.Scenario;
 import org.matsim.api.core.v01.network.Link;
 import org.matsim.api.core.v01.network.Network;
+import org.matsim.core.config.groups.ControlerConfigGroup;
 import org.matsim.evacuationgui.control.algorithms.FeatureTransformer;
 import org.matsim.evacuationgui.experimental.CustomizedOsmNetworkReader;
 import org.matsim.evacuationgui.io.EvacuationConfigReader;
@@ -103,6 +104,7 @@ public class ScenarioGenerator {
 		EvacuationConfigModule gcm = null; 
 
 		this.matsimConfig = ConfigUtils.createConfig();
+		this.matsimConfig.controler().setRoutingAlgorithmType(ControlerConfigGroup.RoutingAlgorithmType.Dijkstra);
 		gcm = new EvacuationConfigModule("evacuation");//, this.configFile);
 		this.matsimConfig.addModule(gcm);
 		EvacuationConfigReader parser = new EvacuationConfigReader(gcm);

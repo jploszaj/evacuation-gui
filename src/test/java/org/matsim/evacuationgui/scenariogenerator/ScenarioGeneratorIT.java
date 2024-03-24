@@ -58,7 +58,7 @@ public class ScenarioGeneratorIT {
         String outputDir = "test/output/" + ScenarioGeneratorIT.class.getCanonicalName().replace('.', '/') + "/testScenarioGenerator/";
 
         String gripsFileString = inputDir + "/grips_config.xml";
-        String matsimConfigFileString = outputDir + "/config.xml";
+        String matsimConfigFileString = outputDir + "config.xml";
 
         System.out.println("grips file:" + gripsFileString);
         System.out.println("matsim config file:" + matsimConfigFileString);
@@ -113,7 +113,11 @@ public class ScenarioGeneratorIT {
         //open matsim config, set first and last iteration
         mc = controller.getScenario().getConfig();
         mc.setParam("controler", "firstIteration", "0");
+        mc.setParam("controler", "routingAlgorithmType", "ACO");
+
         mc.setParam("controler", "lastIteration", "10");
+//        mc.setParam("controler", "routingAlgorithmType", "Dijkstra");
+        mc.setParam("global", "numberOfThreads", "0");
         new ConfigWriter(mc).write(matsimConfigFileString);
 
         //save road closures
