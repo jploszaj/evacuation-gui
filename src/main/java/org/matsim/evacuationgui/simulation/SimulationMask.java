@@ -60,19 +60,19 @@ public class SimulationMask extends JPanel {
     protected String configFile;
     private JComboBox algorithms;
 
-    private String algorithmType = "AStarLandmarks";
+    private String algorithmType = "Dijkstra";
 
     private JTextField textNumberOfAnts;
     private JTextField textEvaporationRate;
     private JTextField textPheromoneConstant;
-    private JTextField textHeuristicImportance;
+//    private JComboBox textHeuristicImportance;
     private JTextField textAlpha;
     private JTextField textBeta;
     private JTextField textQ;
 
 
     public SimulationMask(Controller controller) {
-
+        saveAlgorithmRoutingTypeToFile();
         this.labelConfigName = new JLabel("");
 
         this.controller = controller;
@@ -104,7 +104,7 @@ public class SimulationMask extends JPanel {
         textNumberOfAnts = new JTextField();
         textEvaporationRate = new JTextField();
         textPheromoneConstant = new JTextField();
-        textHeuristicImportance = new JTextField();
+//        textHeuristicImportance = new JTextField();
         textAlpha = new JTextField();
         textBeta = new JTextField();
         textQ = new JTextField();
@@ -135,6 +135,8 @@ public class SimulationMask extends JPanel {
                     // Perform actions with the selected algorithm here
                     // For example, you can print it:
                     algorithmType = selectedAlgorithm.toString();
+                    saveAlgorithmRoutingTypeToFile();
+
                     System.out.println("Selected algorithm: " + selectedAlgorithm);
                 }
             }
@@ -154,9 +156,9 @@ public class SimulationMask extends JPanel {
         itPanel.add(new JLabel("pheromoneConstant:"));
         textPheromoneConstant.setText("1.0");
         itPanel.add(textPheromoneConstant);
-        itPanel.add(new JLabel("heuristicImportance:"));
-        textHeuristicImportance.setText("1.0");
-        itPanel.add(textHeuristicImportance);
+//        itPanel.add(new JLabel("heuristicType:"));
+//        textHeuristicImportance.setText("1.0");
+//        itPanel.add(textHeuristicImportance);
         itPanel.add(new JLabel("alpha:"));
         textAlpha.setText("1.0");
         itPanel.add(textAlpha);
@@ -235,7 +237,7 @@ public class SimulationMask extends JPanel {
                                 new ConfigWriter(config)
                                         .write(SimulationMask.this.configFile);
 
-                                config.setParam("controler", "routingAlgorithmType", Objects.equals(algorithmType, "") ? algorithmType : "AStarLandmarks");
+                                config.setParam("controler", "routingAlgorithmType", !Objects.equals(algorithmType, "") ? algorithmType : "Dijkstra");
 
 
                                 Controler matsimController = new Controler(
@@ -297,14 +299,14 @@ public class SimulationMask extends JPanel {
 
     }
 
-    private void saveACOParametersToFile() {
+    private void saveAlgorithmType() {
         String filePath = "/home/jan/aaevacuation-config/aco-configuration.json";
         // Create a JSON object to store the ACO parameters
         JSONObject parameters = new JSONObject();
         parameters.put("numberOfAnts", textNumberOfAnts.getText());
         parameters.put("evaporationRate", textEvaporationRate.getText());
         parameters.put("pheromoneConstant", textPheromoneConstant.getText());
-        parameters.put("heuristicImportance", textHeuristicImportance.getText());
+//        parameters.put("heuristicImportance", textHeuristicImportance.getText());
         parameters.put("alpha", textAlpha.getText());
         parameters.put("beta", textBeta.getText());
         parameters.put("q", textQ.getText());
@@ -313,6 +315,41 @@ public class SimulationMask extends JPanel {
         try (FileWriter file = new FileWriter(filePath)) {
             file.write(parameters.toJSONString());
             System.out.println("ACO parameters saved to: " + filePath);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void saveACOParametersToFile() {
+        String filePath = "/home/jan/aaevacuation-config/aco-configuration.json";
+        // Create a JSON object to store the ACO parameters
+        JSONObject parameters = new JSONObject();
+        parameters.put("numberOfAnts", textNumberOfAnts.getText());
+        parameters.put("evaporationRate", textEvaporationRate.getText());
+        parameters.put("pheromoneConstant", textPheromoneConstant.getText());
+//        parameters.put("heuristicImportance", textHeuristicImportance.getText());
+        parameters.put("alpha", textAlpha.getText());
+        parameters.put("beta", textBeta.getText());
+        parameters.put("q", textQ.getText());
+
+        // Write the JSON object to the specified file path
+        try (FileWriter file = new FileWriter(filePath)) {
+            file.write(parameters.toJSONString());
+            System.out.println("ACO parameters saved to: " + filePath);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
+    private void saveAlgorithmRoutingTypeToFile() {
+        String filePath = "/home/jan/aaevacuation-config/routingAlgorithmType.json";
+        // Create a JSON object to store the ACO parameters
+        JSONObject parameters = new JSONObject();
+        parameters.put("routingAlgorithmType", algorithmType);
+        // Write the JSON object to the specified file path
+        try (FileWriter file = new FileWriter(filePath)) {
+            file.write(parameters.toJSONString());
+            System.out.println("Routing algorithm type: " + algorithmType + " saved to: " + filePath);
         } catch (IOException e) {
             e.printStackTrace();
         }

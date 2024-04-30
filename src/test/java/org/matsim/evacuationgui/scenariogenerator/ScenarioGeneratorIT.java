@@ -117,7 +117,7 @@ public class ScenarioGeneratorIT {
 
         mc.setParam("controler", "lastIteration", "10");
 //        mc.setParam("controler", "routingAlgorithmType", "Dijkstra");
-        mc.setParam("global", "numberOfThreads", "0");
+//        mc.setParam("global", "numberOfThreads", "0");
         new ConfigWriter(mc).write(matsimConfigFileString);
 
         //save road closures
