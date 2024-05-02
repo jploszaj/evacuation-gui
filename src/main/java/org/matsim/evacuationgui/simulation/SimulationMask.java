@@ -45,7 +45,10 @@ import java.awt.event.KeyListener;
 import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.Objects;
+import java.util.UUID;
 
 public class SimulationMask extends JPanel {
     private static final long serialVersionUID = 1L;
@@ -299,28 +302,12 @@ public class SimulationMask extends JPanel {
 
     }
 
-    private void saveAlgorithmType() {
-        String filePath = "/home/jan/aaevacuation-config/aco-configuration.json";
-        // Create a JSON object to store the ACO parameters
-        JSONObject parameters = new JSONObject();
-        parameters.put("numberOfAnts", textNumberOfAnts.getText());
-        parameters.put("evaporationRate", textEvaporationRate.getText());
-        parameters.put("pheromoneConstant", textPheromoneConstant.getText());
-//        parameters.put("heuristicImportance", textHeuristicImportance.getText());
-        parameters.put("alpha", textAlpha.getText());
-        parameters.put("beta", textBeta.getText());
-        parameters.put("q", textQ.getText());
-
-        // Write the JSON object to the specified file path
-        try (FileWriter file = new FileWriter(filePath)) {
-            file.write(parameters.toJSONString());
-            System.out.println("ACO parameters saved to: " + filePath);
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-    }
-
     private void saveACOParametersToFile() {
+        try {
+            Files.createDirectories(Paths.get("/home/jan/aaevacuation-config"));
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
         String filePath = "/home/jan/aaevacuation-config/aco-configuration.json";
         // Create a JSON object to store the ACO parameters
         JSONObject parameters = new JSONObject();
@@ -331,6 +318,7 @@ public class SimulationMask extends JPanel {
         parameters.put("alpha", textAlpha.getText());
         parameters.put("beta", textBeta.getText());
         parameters.put("q", textQ.getText());
+        parameters.put("runId", UUID.randomUUID().toString());
 
         // Write the JSON object to the specified file path
         try (FileWriter file = new FileWriter(filePath)) {
@@ -340,8 +328,15 @@ public class SimulationMask extends JPanel {
             e.printStackTrace();
         }
     }
+
+
 
     private void saveAlgorithmRoutingTypeToFile() {
+        try {
+            Files.createDirectories(Paths.get("/home/jan/aaevacuation-config"));
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
         String filePath = "/home/jan/aaevacuation-config/routingAlgorithmType.json";
         // Create a JSON object to store the ACO parameters
         JSONObject parameters = new JSONObject();
