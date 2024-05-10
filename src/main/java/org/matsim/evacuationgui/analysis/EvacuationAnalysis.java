@@ -20,6 +20,18 @@
 
 package org.matsim.evacuationgui.analysis;
 
+import org.apache.commons.lang3.NotImplementedException;
+import org.jfree.data.time.Second;
+import org.jfree.data.time.TimeSeries;
+import org.jfree.data.time.TimeSeriesDataItem;
+import org.json.JSONArray;
+import org.json.JSONObject;
+import org.matsim.api.core.v01.Id;
+import org.matsim.api.core.v01.network.Link;
+import org.matsim.core.api.experimental.events.EventsManager;
+import org.matsim.core.events.EventsReaderXMLv1;
+import org.matsim.core.events.EventsUtils;
+import org.matsim.core.utils.collections.Tuple;
 import org.matsim.evacuationgui.analysis.control.EventHandler;
 import org.matsim.evacuationgui.analysis.control.EventReaderThread;
 import org.matsim.evacuationgui.analysis.data.ColorationMode;
@@ -35,16 +47,15 @@ import org.matsim.evacuationgui.model.imagecontainer.BufferedImageContainer;
 import org.matsim.evacuationgui.model.process.*;
 import org.matsim.evacuationgui.view.DefaultWindow;
 import org.matsim.evacuationgui.view.renderer.GridRenderer;
-import org.matsim.core.api.experimental.events.EventsManager;
-import org.matsim.core.events.EventsReaderXMLv1;
-import org.matsim.core.events.EventsUtils;
 
 import javax.swing.*;
 import java.awt.*;
 import java.awt.image.BufferedImage;
-import java.io.File;
-import java.util.ArrayList;
-import java.util.Stack;
+import java.io.*;
+import java.util.List;
+import java.util.*;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class EvacuationAnalysis extends AbstractModule {
 
@@ -109,7 +120,9 @@ public class EvacuationAnalysis extends AbstractModule {
             @Override
             public void start() {
                 toolBox.setGridRenderer(gridRenderer);
+                readEventsAndSaveToFile();
                 readEvents();
+
 
                 // finally: enable all layers
                 controller.enableMapRenderer();
@@ -177,17 +190,41 @@ public class EvacuationAnalysis extends AbstractModule {
         this.cellTransparency = cellTransparency;
     }
 
+    public static void sortFileList(ArrayList<File> fileList) {
+        // Custom comparator to compare files based on the numbers in their names
+        Comparator<File> fileComparator = new Comparator<File>() {
+            @Override
+            public int compare(File file1, File file2) {
+                return extractNumber(file1.getName()) - extractNumber(file2.getName());
+            }
+        };
+
+        // Sorting the file list using the custom comparator
+        fileList.sort(fileComparator);
+    }
+
+    private static int extractNumber(String fileName) {
+        // Regular expression pattern to extract numbers from file names
+        Pattern pattern = Pattern.compile("(\\d+)\\.events\\.xml\\.gz");
+        Matcher matcher = pattern.matcher(fileName);
+        if (matcher.find()) {
+            return Integer.parseInt(matcher.group(1));
+        }
+        return Integer.MAX_VALUE; // Return max value if no number found
+    }
+
     public void readEvents() {
         if (currentEventFile == null) {
-            eventFiles = getAvailableEventFiles(this.controller.getIterationsOutputDirectory());
+            var fileList = getAvailableEventFiles(this.controller.getIterationsOutputDirectory());
+            sortFileList(fileList);
+            eventFiles = fileList;
             currentEventFile = eventFiles.get(0);
 
             // check if empty
             if (eventFiles.isEmpty()) {
                 JOptionPane.showMessageDialog(this.controller.getParentComponent(), "Could not find any event files", "Event files unavailable", JOptionPane.ERROR_MESSAGE);
                 return;
-            }
-            else {
+            } else {
 //                this.toolBox.getOpenOTFVisBtn().setEnabled(true);
             }
             ((EAToolBox) getToolBox()).setEventFileItems(eventFiles);
@@ -220,6 +257,215 @@ public class EvacuationAnalysis extends AbstractModule {
         ((EAToolBox) getToolBox()).setFirstLoad(false);
 
     }
+
+    public void readEventsAndSaveToFile() {
+        var fileList = getAvailableEventFiles(this.controller.getIterationsOutputDirectory());
+        sortFileList(fileList);
+
+        JSONArray eventDataList = new JSONArray();
+
+        // Read routing algorithm type from routingAlgorithmType.json
+        String routingAlgorithmType = getRoutingAlgorithmType();
+        JSONObject acoConfig = null;
+        if (routingAlgorithmType.equals("ACO")) {
+            // Read ACO configuration from aco-configuration.json
+            acoConfig = readACOParametersFromFile();
+        }
+
+        // Create a common JSON object for routing algorithm type and ACO configuration
+        JSONObject commonData = new JSONObject();
+        commonData.put("routing_algorithm_type", routingAlgorithmType);
+        commonData.put("iterations", fileList.size());
+
+        if (acoConfig != null) {
+            commonData.put("aco_configuration", acoConfig);
+        }
+
+        // Add common data to root object
+        JSONObject root = new JSONObject();
+        root.put("common_data", commonData);
+        root.put("events", eventDataList);
+
+        double bestEvacuationTime = Double.MAX_VALUE;
+        double bestClearingTime = Double.MAX_VALUE;
+        double bestGraphTime = Double.MAX_VALUE;
+        String bestEvacuationFileName = "";
+        String bestClearingFileName = "";
+        String bestGraphTimeFileName = "";
+
+        for (File file : fileList) {
+            // run event reader
+            var eventHandlerTmp = runEventReaderForWritingAnalysisToFile(file);
+
+            // get data from event handler (if not null)
+            if (eventHandlerTmp != null) {
+                eventHandlerTmp.setColorationMode(this.colorationMode);
+                eventHandlerTmp.setTransparency(this.cellTransparency);
+                eventHandlerTmp.setK(k);
+
+                EventData data = eventHandlerTmp.getData();
+
+                List<Tuple<Double, Integer>> arrivalTimes = data.getArrivalTimes();
+                int arrivalTimeCount = arrivalTimes.size();
+
+
+                double[] xs = new double[arrivalTimeCount];
+                double[] ys = new double[arrivalTimeCount];
+
+                TimeSeries timeSeries = new TimeSeries("evacuation time");
+
+
+                for (int i = 0; i < arrivalTimeCount; i++) {
+                    xs[i] = 1000 * 60 * 60 * 23 + arrivalTimes.get(i).getFirst() * 1000;
+                    ys[i] = arrivalTimes.get(i).getSecond() / data.getSampleSize();
+                    timeSeries.add(new Second(new Date((long) xs[i])), ys[i]);
+                }
+
+
+                TimeSeriesDataItem lastItem = timeSeries.getDataItem(timeSeries.getItems().size() - 1);
+                Date date = lastItem.getPeriod().getEnd();
+                var lastItemSeconds = date.getHours() * 3600 + date.getMinutes() * 60 + date.getSeconds();
+
+                // Get evacuation time
+                LinkedList<Tuple<Id<Link>, Double>> evacuationClusters = data.getClusters(Mode.EVACUATION);
+                double evacuationTime = evacuationClusters.get(evacuationClusters.size() - 1).getSecond();
+
+                // Get clearing time
+                LinkedList<Tuple<Id<Link>, Double>> clearingClusters = data.getClusters(Mode.CLEARING);
+                double clearingTime = clearingClusters.get(clearingClusters.size() - 1).getSecond();
+
+                if (evacuationTime < bestEvacuationTime) {
+                    bestEvacuationTime = evacuationTime;
+                    bestEvacuationFileName = file.getName();
+                }
+                if (clearingTime < bestClearingTime) {
+                    bestClearingTime = clearingTime;
+                    bestClearingFileName = file.getName();
+                }
+                if (lastItemSeconds < bestGraphTime) {
+                    bestGraphTime = lastItemSeconds;
+                    bestGraphTimeFileName = file.getName();
+                }
+
+
+                // Create JSON object for this file's data
+                JSONObject eventData = new JSONObject();
+                eventData.put("file_name", file);
+                eventData.put("evacuation_time", getTime(evacuationTime, Constants.Unit.TIME));
+                eventData.put("clearing_time", getTime(clearingTime, Constants.Unit.TIME));
+                eventData.put("graph_evacuation_time", getTime(lastItemSeconds, Constants.Unit.TIME));
+
+                eventDataList.put(eventData);
+            }
+        }
+
+        commonData.put("best_evacuation_time", getTime(bestEvacuationTime, Constants.Unit.TIME));
+        commonData.put("best_clearing_time", getTime(bestClearingTime, Constants.Unit.TIME));
+        commonData.put("best_graph_evacuation_time", getTime(bestGraphTime, Constants.Unit.TIME));
+        commonData.put("population", this.controller.getScenario().getPopulation().getPersons().size());
+        commonData.put("file_name_of_best_evacuation", bestEvacuationFileName);
+        commonData.put("file_name_of_best_clearing", bestClearingFileName);
+        commonData.put("file_name_of_best_graph_evacuation_time", bestGraphTimeFileName);
+        var outputFilename = "output" + routingAlgorithmType.toLowerCase() + ".json";
+
+        if (acoConfig != null) {
+            var heuristicType = acoConfig.get("heuristicType").equals("TRAVEL_COST") ? "t" : "l";
+            outputFilename = "output-" + routingAlgorithmType.toLowerCase() + "-a" + acoConfig.get("alpha") + "-b" + acoConfig.get("beta") + "-e" + acoConfig.get("evaporationRate") + "-q" + acoConfig.get("q") + "-h" + heuristicType + ".json";
+        }
+
+
+        // Write JSON to file
+        try (FileWriter fileWriter = new FileWriter("tests/" + outputFilename)) {
+            fileWriter.write(root.toString());
+            System.out.println("Data saved to tests/" + outputFilename);
+        } catch (IOException e) {
+            System.err.println("Error writing JSON to file: " + e.getMessage());
+        }
+    }
+
+    public static String getTime(double value, Constants.Unit unit) {
+        if (unit.equals(Constants.Unit.PEOPLE))
+            throw new NotImplementedException("Not implemented");
+
+        if (value < 0d)
+            return "";
+
+        int hours = (int) (value / 3600);
+        int minutes = (int) ((value % 3600) / 60);
+        int seconds = (int) (value % 60);
+
+        return String.format("%dh%02dm%02ds", hours, minutes, seconds);
+    }
+
+    private String getRoutingAlgorithmType() {
+        try {
+            // Read routing algorithm type from routingAlgorithmType.json
+            BufferedReader reader = new BufferedReader(new FileReader("/home/jan/aaevacuation-config/routingAlgorithmType.json"));
+            String line = reader.readLine();
+            reader.close();
+            JSONObject jsonObject = new JSONObject(line);
+            return jsonObject.getString("routingAlgorithmType");
+        } catch (IOException e) {
+            e.printStackTrace();
+            return null;
+        }
+    }
+
+
+    private JSONObject readACOParametersFromFile() {
+        JSONObject defaultParameters = getDefaultACOParameters(); // Get default parameters
+        try {
+            // Path to the JSON file
+            String filePath = "/home/jan/aaevacuation-config/aco-configuration.json";
+            File configFile = new File(filePath);
+
+            if (configFile.exists() && !configFile.isDirectory()) {
+                // Parse the JSON file if it exists
+                BufferedReader reader = new BufferedReader(new FileReader(configFile));
+                StringBuilder content = new StringBuilder();
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    content.append(line);
+                }
+                reader.close();
+                return new JSONObject(content.toString());
+            } else {
+                // Return default parameters if the file doesn't exist
+                return defaultParameters;
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+            return defaultParameters; // Return default parameters in case of any exception
+        }
+    }
+
+    // Define default parameters
+    private JSONObject getDefaultACOParameters() {
+        JSONObject defaultParameters = new JSONObject();
+        defaultParameters.put("numberOfAnts", 20); // Default value for numberOfAnts
+        defaultParameters.put("pheromoneConstant", 0.1); // Default value for pheromoneConstant
+        defaultParameters.put("alpha", 1.0); // Default value for alpha
+        defaultParameters.put("beta", 2.0); // Default value for beta
+        defaultParameters.put("evaporationRate", 0.5); // Default value for evaporationRate
+        defaultParameters.put("q", 1.0); // Default value for Q
+        defaultParameters.put("heuristicType", "TRAVEL_COST");
+        defaultParameters.put("runId", "default");
+
+        return defaultParameters;
+    }
+
+
+    public EventHandler runEventReaderForWritingAnalysisToFile(File eventFile) {
+        EventsManager e = EventsUtils.createEventsManager();
+        EventsReaderXMLv1 reader = new EventsReaderXMLv1(e);
+        var readerThread = new Thread(new EventReaderThread(reader, eventFile.toString()), "readerthread");
+        var eventHandler = new EventHandler(useCellCount, eventFile.getName(), this.controller.getScenario(), this.gridSize, readerThread);
+        e.addHandler(eventHandler);
+        readerThread.run();
+
+        return eventHandler;
+    }
+
 
     public void runEventReader(File eventFile) {
 
@@ -278,8 +524,7 @@ public class EvacuationAnalysis extends AbstractModule {
                 for (File currentFile : filesToCheck) {
                     if (currentFile.isDirectory()) {
                         directoriesToScan.push(currentFile);
-                    }
-                    else {
+                    } else {
                         if (!files.contains(currentFile)) {
                             files.add(currentFile);
                         }

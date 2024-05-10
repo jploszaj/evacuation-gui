@@ -30,6 +30,7 @@ import org.matsim.core.config.ConfigWriter;
 import org.matsim.core.config.groups.ControlerConfigGroup;
 import org.matsim.core.controler.Controler;
 import org.matsim.core.controler.OutputDirectoryHierarchy;
+import org.matsim.core.router.HeuristicType;
 import org.matsim.evacuationgui.control.Controller;
 import org.matsim.evacuationgui.model.locale.Locale;
 
@@ -65,7 +66,7 @@ public class SimulationMask extends JPanel {
 
     private String algorithmType = "Dijkstra";
 
-    private JTextField textNumberOfAnts;
+    private JComboBox heuristicType;
     private JTextField textEvaporationRate;
     private JTextField textPheromoneConstant;
 //    private JComboBox textHeuristicImportance;
@@ -104,10 +105,12 @@ public class SimulationMask extends JPanel {
         this.textLastIteration.setEnabled(false);
 
 
-        textNumberOfAnts = new JTextField();
+
+        this.heuristicType = new JComboBox();
+        this.heuristicType.addItem("TRAVEL_COST");
+        this.heuristicType.addItem("LINK_LENGTH");
         textEvaporationRate = new JTextField();
         textPheromoneConstant = new JTextField();
-//        textHeuristicImportance = new JTextField();
         textAlpha = new JTextField();
         textBeta = new JTextField();
         textQ = new JTextField();
@@ -151,8 +154,7 @@ public class SimulationMask extends JPanel {
         itPanel.add(new JLabel("Set when algorithm: ACO"));
         itPanel.add(new JLabel(""));
         itPanel.add(new JLabel("numberOfAnts:"));
-        textNumberOfAnts.setText("20");
-        itPanel.add(textNumberOfAnts);
+        itPanel.add(heuristicType);
         itPanel.add(new JLabel("evaporationRate:"));
         textEvaporationRate.setText("0.1");
         itPanel.add(textEvaporationRate);
@@ -237,6 +239,8 @@ public class SimulationMask extends JPanel {
                                         textFirstIteration.getText());
                                 config.setParam("controler", "lastIteration",
                                         textLastIteration.getText());
+                                config.setParam("controler", "writeEventsInterval", "1");
+                                config.setParam("controler", "writePlansInterval", "1");
                                 new ConfigWriter(config)
                                         .write(SimulationMask.this.configFile);
 
@@ -311,10 +315,9 @@ public class SimulationMask extends JPanel {
         String filePath = "/home/jan/aaevacuation-config/aco-configuration.json";
         // Create a JSON object to store the ACO parameters
         JSONObject parameters = new JSONObject();
-        parameters.put("numberOfAnts", textNumberOfAnts.getText());
+        parameters.put("heuristicType", heuristicType.getSelectedItem());
         parameters.put("evaporationRate", textEvaporationRate.getText());
         parameters.put("pheromoneConstant", textPheromoneConstant.getText());
-//        parameters.put("heuristicImportance", textHeuristicImportance.getText());
         parameters.put("alpha", textAlpha.getText());
         parameters.put("beta", textBeta.getText());
         parameters.put("q", textQ.getText());
