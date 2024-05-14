@@ -21,6 +21,7 @@
 package org.matsim.evacuationgui.analysis;
 
 import org.apache.commons.lang3.NotImplementedException;
+import org.apache.log4j.Logger;
 import org.jfree.data.time.Second;
 import org.jfree.data.time.TimeSeries;
 import org.jfree.data.time.TimeSeriesDataItem;
@@ -29,6 +30,7 @@ import org.json.JSONObject;
 import org.matsim.api.core.v01.Id;
 import org.matsim.api.core.v01.network.Link;
 import org.matsim.core.api.experimental.events.EventsManager;
+import org.matsim.core.config.groups.StrategyConfigGroup;
 import org.matsim.core.events.EventsReaderXMLv1;
 import org.matsim.core.events.EventsUtils;
 import org.matsim.core.utils.collections.Tuple;
@@ -52,6 +54,8 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.*;
+import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.*;
 import java.util.regex.Matcher;
@@ -59,6 +63,7 @@ import java.util.regex.Pattern;
 
 public class EvacuationAnalysis extends AbstractModule {
 
+    private static final Logger log = Logger.getLogger(EvacuationAnalysis.class);
     private ArrayList<File> eventFiles;
     private File currentEventFile;
     private EventHandler eventHandler;
@@ -265,7 +270,8 @@ public class EvacuationAnalysis extends AbstractModule {
         JSONArray eventDataList = new JSONArray();
 
         // Read routing algorithm type from routingAlgorithmType.json
-        String routingAlgorithmType = getRoutingAlgorithmType();
+        RoutingAlgorithmTypeFile routingAlgorithmType1 = getRoutingAlgorithmType();
+        String routingAlgorithmType = routingAlgorithmType1.routingAlgorithmType;
         JSONObject acoConfig = null;
         if (routingAlgorithmType.equals("ACO")) {
             // Read ACO configuration from aco-configuration.json
@@ -275,8 +281,9 @@ public class EvacuationAnalysis extends AbstractModule {
         // Create a common JSON object for routing algorithm type and ACO configuration
         JSONObject commonData = new JSONObject();
         commonData.put("routing_algorithm_type", routingAlgorithmType);
-        commonData.put("iterations", fileList.size());
 
+        commonData.put("runId", routingAlgorithmType1.runId);
+        commonData.put("iterations", fileList.size());
         if (acoConfig != null) {
             commonData.put("aco_configuration", acoConfig);
         }
@@ -366,20 +373,62 @@ public class EvacuationAnalysis extends AbstractModule {
         commonData.put("file_name_of_best_evacuation", bestEvacuationFileName);
         commonData.put("file_name_of_best_clearing", bestClearingFileName);
         commonData.put("file_name_of_best_graph_evacuation_time", bestGraphTimeFileName);
-        var outputFilename = "output" + routingAlgorithmType.toLowerCase() + ".json";
+        var strategyReplanning = this.controller.getScenario().getConfig().strategy().getParameterSets().get("strategysettings");
+        var listStrategyReplanning = strategyReplanning.stream().toList();
+        if (listStrategyReplanning.size() > 2) {
+            throw new NotImplementedException("not implemented yet");
+        }
+        for (int i = 0; i < listStrategyReplanning.size(); i++) {
 
-        if (acoConfig != null) {
-            var heuristicType = acoConfig.get("heuristicType").equals("TRAVEL_COST") ? "t" : "l";
-            outputFilename = "output-" + routingAlgorithmType.toLowerCase() + "-a" + acoConfig.get("alpha") + "-b" + acoConfig.get("beta") + "-e" + acoConfig.get("evaporationRate") + "-q" + acoConfig.get("q") + "-h" + heuristicType + ".json";
+            var name = i == 0 ? "RandomPlanSelector_ReRoute" : "ExpBetaPlanChanger";
+            commonData.put(name, ((StrategyConfigGroup.StrategySettings) listStrategyReplanning.get(i)).getWeight());
+
+        }
+
+        String replanning = "-weight";
+        if (commonData.has("RandomPlanSelector_ReRoute")) {
+            replanning += "-rer" + commonData.get("RandomPlanSelector_ReRoute");
+        }
+        if (commonData.has("ExpBetaPlanChanger")) {
+            replanning += "-exp" + commonData.get("ExpBetaPlanChanger");
         }
 
 
-        // Write JSON to file
-        try (FileWriter fileWriter = new FileWriter("tests/" + outputFilename)) {
-            fileWriter.write(root.toString());
-            System.out.println("Data saved to tests/" + outputFilename);
-        } catch (IOException e) {
-            System.err.println("Error writing JSON to file: " + e.getMessage());
+        var outputFilename = "output" + routingAlgorithmType.toLowerCase() + "-i" + fileList.size() + replanning + ".json";
+
+        if (acoConfig != null) {
+            var heuristicType = acoConfig.get("heuristicType").equals("TRAVEL_COST") ? "t" : "l";
+            var acoType = acoConfig.get("acoType").equals("ACO_PHEROMONE_ANTS_FIND") ? "clssc" : "cstm";
+            outputFilename = "output-" + routingAlgorithmType.toLowerCase() + "-i" + fileList.size() + replanning + "-t" + acoType + "-a" + acoConfig.get("alpha") + "-b" + acoConfig.get("beta") + "-p" + acoConfig.get("pheromoneConstant") + "-e" + acoConfig.get("evaporationRate") + "-q" + acoConfig.get("q") + "-h" + heuristicType + ".json";
+        }
+
+        String outputPath = "tests/";
+        int iterateNumber = 0;
+        while (true) {
+            String filename = iterateNumber == 0 ? outputFilename : outputFilename.replace(".json", "_" + iterateNumber + ".json");
+
+
+
+            File outputFile = new File(outputPath + filename);
+            if (isRunIdFileAlreadyExists(outputFile.getPath(), routingAlgorithmType1.runId)) {
+                System.out.println("Run id stats already exists: "  + outputFile.getPath());
+                break;
+            }
+
+            if (!outputFile.exists()) {
+                try (FileWriter fileWriter = new FileWriter(outputFile)) {
+                    fileWriter.write(root.toString());
+                    System.out.println("Data saved to " + outputFile.getPath());
+                    super.setTitle(controller.getLocale().moduleEvacuationAnalysis() + " with stat file: " + outputFile.getPath());
+
+                    break; // Exit the loop once a unique filename is found and the file is written
+                } catch (IOException e) {
+                    System.err.println("Error writing JSON to file: " + e.getMessage());
+                    break; // Exit the loop if there's an error
+                }
+            }
+
+            iterateNumber++;
         }
     }
 
@@ -397,19 +446,48 @@ public class EvacuationAnalysis extends AbstractModule {
         return String.format("%dh%02dm%02ds", hours, minutes, seconds);
     }
 
-    private String getRoutingAlgorithmType() {
+    public record RoutingAlgorithmTypeFile(String routingAlgorithmType, String runId){};
+
+    private RoutingAlgorithmTypeFile getRoutingAlgorithmType() {
         try {
             // Read routing algorithm type from routingAlgorithmType.json
             BufferedReader reader = new BufferedReader(new FileReader("/home/jan/aaevacuation-config/routingAlgorithmType.json"));
             String line = reader.readLine();
             reader.close();
             JSONObject jsonObject = new JSONObject(line);
-            return jsonObject.getString("routingAlgorithmType");
+            var routingAlgorithmTypeFileRecord = new RoutingAlgorithmTypeFile(jsonObject.getString("routingAlgorithmType"), jsonObject.getString("runId"));
+            return routingAlgorithmTypeFileRecord;
         } catch (IOException e) {
             e.printStackTrace();
             return null;
         }
     }
+
+    private boolean isRunIdFileAlreadyExists(String filePath, String runId) {
+        try {
+            // Read routing algorithm type from routingAlgorithmType.json
+            File configFile = new File(filePath);
+
+            if (configFile.exists() && !configFile.isDirectory()) {
+                // Parse the JSON file if it exists
+                BufferedReader reader = new BufferedReader(new FileReader(configFile));
+                StringBuilder content = new StringBuilder();
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    content.append(line);
+                }
+                reader.close();
+                var json = new JSONObject(content.toString());
+                return json.getJSONObject("common_data").getString("runId").equals(runId);
+            } else {
+                return false;
+            }
+        } catch (IOException e) {
+            e.printStackTrace();
+            return false;
+        }
+    }
+
 
 
     private JSONObject readACOParametersFromFile() {

@@ -64,19 +64,19 @@ public class SimulationMask extends JPanel {
     protected String configFile;
     private JComboBox algorithms;
 
-    private String algorithmType = "Dijkstra";
-
+    private String algorithmType = "ACO";
+    private JComboBox acoTypeBox;
     private JComboBox heuristicType;
     private JTextField textEvaporationRate;
     private JTextField textPheromoneConstant;
-//    private JComboBox textHeuristicImportance;
+    //    private JComboBox textHeuristicImportance;
     private JTextField textAlpha;
     private JTextField textBeta;
     private JTextField textQ;
 
 
     public SimulationMask(Controller controller) {
-        saveAlgorithmRoutingTypeToFile();
+//        saveAlgorithmRoutingTypeToFile();
         this.labelConfigName = new JLabel("");
 
         this.controller = controller;
@@ -104,7 +104,9 @@ public class SimulationMask extends JPanel {
         this.textFirstIteration.setEnabled(false);
         this.textLastIteration.setEnabled(false);
 
-
+        this.acoTypeBox = new JComboBox();
+        this.acoTypeBox.addItem("ACO_PHEROMONE_ANT_FINDS");
+        this.acoTypeBox.addItem("ACO_PHEROMONE_ANTS_FIND");
 
         this.heuristicType = new JComboBox();
         this.heuristicType.addItem("TRAVEL_COST");
@@ -123,47 +125,49 @@ public class SimulationMask extends JPanel {
         itPanel.add(textFirstIteration);
         itPanel.add(labelLastIteration);
         itPanel.add(textLastIteration);
-//		itPanel.add(new JLabel(""));
+
         itPanel.add(labelAlgorithmType);
         this.algorithms = new JComboBox();
-        for (int i = 0; i < ControlerConfigGroup.RoutingAlgorithmType.values().length; i++) {
-            this.algorithms.addItem(ControlerConfigGroup.RoutingAlgorithmType.values()[i]);
-        }
-        this.algorithms.setActionCommand("changeAlg");
+        this.algorithms.addItem(ControlerConfigGroup.RoutingAlgorithmType.ACO);
+        this.algorithms.addItem(ControlerConfigGroup.RoutingAlgorithmType.Dijkstra);
+        this.algorithms.addItem(ControlerConfigGroup.RoutingAlgorithmType.AStarLandmarks);
+        this.algorithms.addItem(ControlerConfigGroup.RoutingAlgorithmType.FastDijkstra);
+        this.algorithms.addItem(ControlerConfigGroup.RoutingAlgorithmType.FastAStarLandmarks);
+        this.algorithms.addItem(ControlerConfigGroup.RoutingAlgorithmType.SpeedyALT);
+
+//        this.algorithms.setActionCommand("changeAlg");
 
 
         // Create ActionListener for algorithms JComboBox
-        ActionListener algorithmSelectionListener = new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                if (e.getActionCommand().equals("changeAlg")) {
-                    ControlerConfigGroup.RoutingAlgorithmType selectedAlgorithm = (ControlerConfigGroup.RoutingAlgorithmType) algorithms.getSelectedItem();
-                    // Perform actions with the selected algorithm here
-                    // For example, you can print it:
-                    algorithmType = selectedAlgorithm.toString();
-                    saveAlgorithmRoutingTypeToFile();
+//        ActionListener algorithmSelectionListener = new ActionListener() {
+//            @Override
+//            public void actionPerformed(ActionEvent e) {
+//                if (e.getActionCommand().equals("changeAlg")) {
+//                    ControlerConfigGroup.RoutingAlgorithmType selectedAlgorithm = (ControlerConfigGroup.RoutingAlgorithmType) algorithms.getSelectedItem();
+//                    // Perform actions with the selected algorithm here
+//                    // For example, you can print it:
+//                    algorithmType = selectedAlgorithm.toString();
+//                    saveAlgorithmRoutingTypeToFile();
+//
+//                    System.out.println("Selected algorithm: " + selectedAlgorithm);
+//                }
+//            }
+//        };
 
-                    System.out.println("Selected algorithm: " + selectedAlgorithm);
-                }
-            }
-        };
 
-
-        this.algorithms.addActionListener(algorithmSelectionListener);
         itPanel.add(this.algorithms);
         itPanel.add(new JLabel("Set when algorithm: ACO"));
         itPanel.add(new JLabel(""));
-        itPanel.add(new JLabel("numberOfAnts:"));
+        itPanel.add(new JLabel("heuristicType:"));
         itPanel.add(heuristicType);
+        itPanel.add(new JLabel("acoType:"));
+        itPanel.add(acoTypeBox);
         itPanel.add(new JLabel("evaporationRate:"));
         textEvaporationRate.setText("0.1");
         itPanel.add(textEvaporationRate);
         itPanel.add(new JLabel("pheromoneConstant:"));
         textPheromoneConstant.setText("1.0");
         itPanel.add(textPheromoneConstant);
-//        itPanel.add(new JLabel("heuristicType:"));
-//        textHeuristicImportance.setText("1.0");
-//        itPanel.add(textHeuristicImportance);
         itPanel.add(new JLabel("alpha:"));
         textAlpha.setText("1.0");
         itPanel.add(textAlpha);
@@ -171,7 +175,7 @@ public class SimulationMask extends JPanel {
         textBeta.setText("1.0");
         itPanel.add(textBeta);
         itPanel.add(new JLabel("q:"));
-        textQ.setText("500");
+        textQ.setText("0.1");
         itPanel.add(textQ);
 
         this.btRun = new JButton(locale.btRun());
@@ -201,7 +205,7 @@ public class SimulationMask extends JPanel {
                     Scenario scenario = SimulationMask.this.controller
                             .getScenario();
                     Config config = scenario.getConfig();
-                    saveACOParametersToFile();
+
 
 
                     String outdir = config.getParam("controler", "outputDirectory");
@@ -244,7 +248,20 @@ public class SimulationMask extends JPanel {
                                 new ConfigWriter(config)
                                         .write(SimulationMask.this.configFile);
 
-                                config.setParam("controler", "routingAlgorithmType", !Objects.equals(algorithmType, "") ? algorithmType : "Dijkstra");
+                                ControlerConfigGroup.RoutingAlgorithmType selectedAlgorithm = (ControlerConfigGroup.RoutingAlgorithmType) algorithms.getSelectedItem();
+                                // Perform actions with the selected algorithm here
+                                // For example, you can print it:
+                                UUID runId = UUID.randomUUID();
+                                algorithmType = selectedAlgorithm.toString();
+                                if (selectedAlgorithm.equals(ControlerConfigGroup.RoutingAlgorithmType.ACO)) {
+                                    saveACOParametersToFile(runId);
+                                }
+                                saveACOParametersToFile(runId);
+                                saveAlgorithmRoutingTypeToFile(runId);
+
+                                System.out.println("Selected algorithm: " + selectedAlgorithm);
+
+                                config.setParam("controler", "routingAlgorithmType", !Objects.equals(algorithmType, "") ? algorithmType : "ACO");
 
 
                                 Controler matsimController = new Controler(
@@ -306,7 +323,7 @@ public class SimulationMask extends JPanel {
 
     }
 
-    private void saveACOParametersToFile() {
+    private void saveACOParametersToFile(UUID runId) {
         try {
             Files.createDirectories(Paths.get("/home/jan/aaevacuation-config"));
         } catch (IOException e) {
@@ -318,10 +335,11 @@ public class SimulationMask extends JPanel {
         parameters.put("heuristicType", heuristicType.getSelectedItem());
         parameters.put("evaporationRate", textEvaporationRate.getText());
         parameters.put("pheromoneConstant", textPheromoneConstant.getText());
+        parameters.put("acoType", acoTypeBox.getSelectedItem());
         parameters.put("alpha", textAlpha.getText());
         parameters.put("beta", textBeta.getText());
         parameters.put("q", textQ.getText());
-        parameters.put("runId", UUID.randomUUID().toString());
+        parameters.put("runId", runId.toString());
 
         // Write the JSON object to the specified file path
         try (FileWriter file = new FileWriter(filePath)) {
@@ -333,8 +351,7 @@ public class SimulationMask extends JPanel {
     }
 
 
-
-    private void saveAlgorithmRoutingTypeToFile() {
+    private void saveAlgorithmRoutingTypeToFile(UUID runId) {
         try {
             Files.createDirectories(Paths.get("/home/jan/aaevacuation-config"));
         } catch (IOException e) {
@@ -344,6 +361,7 @@ public class SimulationMask extends JPanel {
         // Create a JSON object to store the ACO parameters
         JSONObject parameters = new JSONObject();
         parameters.put("routingAlgorithmType", algorithmType);
+        parameters.put("runId", runId.toString());
         // Write the JSON object to the specified file path
         try (FileWriter file = new FileWriter(filePath)) {
             file.write(parameters.toJSONString());
