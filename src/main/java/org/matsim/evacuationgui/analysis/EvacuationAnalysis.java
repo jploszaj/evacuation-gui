@@ -20,6 +20,10 @@
 
 package org.matsim.evacuationgui.analysis;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.apache.commons.lang3.NotImplementedException;
 import org.apache.log4j.Logger;
 import org.jfree.data.time.Second;
@@ -54,8 +58,10 @@ import javax.swing.*;
 import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.io.*;
+import java.time.Duration;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.Period;
 import java.util.List;
 import java.util.*;
 import java.util.regex.Matcher;
@@ -272,6 +278,20 @@ public class EvacuationAnalysis extends AbstractModule {
         // Read routing algorithm type from routingAlgorithmType.json
         RoutingAlgorithmTypeFile routingAlgorithmType1 = getRoutingAlgorithmType();
         String routingAlgorithmType = routingAlgorithmType1.routingAlgorithmType;
+        ObjectMapper mapper = new ObjectMapper();
+        mapper.registerModule(new JavaTimeModule());
+        mapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+        LocalDateTime start;
+        try {
+            start = mapper.readValue(routingAlgorithmType1.start, LocalDateTime.class);
+        } catch (JsonProcessingException e) {
+            throw new RuntimeException(e);
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+
+        Duration duration = Duration.between(now, start);
+
         JSONObject acoConfig = null;
         if (routingAlgorithmType.equals("ACO")) {
             // Read ACO configuration from aco-configuration.json
@@ -280,6 +300,8 @@ public class EvacuationAnalysis extends AbstractModule {
 
         // Create a common JSON object for routing algorithm type and ACO configuration
         JSONObject commonData = new JSONObject();
+        commonData.put("time", duration);
+
         commonData.put("routing_algorithm_type", routingAlgorithmType);
 
         commonData.put("runId", routingAlgorithmType1.runId);
@@ -398,7 +420,7 @@ public class EvacuationAnalysis extends AbstractModule {
 
         if (acoConfig != null) {
             var heuristicType = acoConfig.get("heuristicType").equals("TRAVEL_COST") ? "t" : "l";
-            var acoType = acoConfig.get("acoType").equals("ACO_PHEROMONE_ANTS_FIND") ? "clssc" : "cstm";
+            var acoType = acoConfig.get("acoType").equals("VARIANT_1") ? "clssc" : "cstm";
             outputFilename = "output-" + routingAlgorithmType.toLowerCase() + "-i" + fileList.size() + replanning + "-t" + acoType + "-a" + acoConfig.get("alpha") + "-b" + acoConfig.get("beta") + "-p" + acoConfig.get("pheromoneConstant") + "-e" + acoConfig.get("evaporationRate") + "-q" + acoConfig.get("q") + "-h" + heuristicType + ".json";
         }
 
@@ -446,7 +468,7 @@ public class EvacuationAnalysis extends AbstractModule {
         return String.format("%dh%02dm%02ds", hours, minutes, seconds);
     }
 
-    public record RoutingAlgorithmTypeFile(String routingAlgorithmType, String runId){};
+    public record RoutingAlgorithmTypeFile(String routingAlgorithmType, String runId, String start){};
 
     private RoutingAlgorithmTypeFile getRoutingAlgorithmType() {
         try {
@@ -455,7 +477,7 @@ public class EvacuationAnalysis extends AbstractModule {
             String line = reader.readLine();
             reader.close();
             JSONObject jsonObject = new JSONObject(line);
-            var routingAlgorithmTypeFileRecord = new RoutingAlgorithmTypeFile(jsonObject.getString("routingAlgorithmType"), jsonObject.getString("runId"));
+            var routingAlgorithmTypeFileRecord = new RoutingAlgorithmTypeFile(jsonObject.getString("routingAlgorithmType"), jsonObject.getString("runId"), jsonObject.getString("start"));
             return routingAlgorithmTypeFileRecord;
         } catch (IOException e) {
             e.printStackTrace();

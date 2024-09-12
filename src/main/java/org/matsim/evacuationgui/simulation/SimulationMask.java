@@ -20,6 +20,10 @@
 
 package org.matsim.evacuationgui.simulation;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.apache.log4j.AppenderSkeleton;
 import org.apache.log4j.Logger;
 import org.apache.log4j.spi.LoggingEvent;
@@ -48,6 +52,8 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.time.Duration;
+import java.time.LocalDateTime;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -73,6 +79,8 @@ public class SimulationMask extends JPanel {
     private JTextField textAlpha;
     private JTextField textBeta;
     private JTextField textQ;
+    LocalDateTime startTime;
+    LocalDateTime endTime;
 
 
     public SimulationMask(Controller controller) {
@@ -105,12 +113,15 @@ public class SimulationMask extends JPanel {
         this.textLastIteration.setEnabled(false);
 
         this.acoTypeBox = new JComboBox();
-        this.acoTypeBox.addItem("ACO_PHEROMONE_ANT_FINDS");
-        this.acoTypeBox.addItem("ACO_PHEROMONE_ANTS_FIND");
+        this.acoTypeBox.addItem("VARIANT_1");
+        this.acoTypeBox.addItem("VARIANT_2");
+        this.acoTypeBox.setActionCommand("changeVariant");
+
 
         this.heuristicType = new JComboBox();
         this.heuristicType.addItem("TRAVEL_COST");
         this.heuristicType.addItem("LINK_LENGTH");
+
         textEvaporationRate = new JTextField();
         textPheromoneConstant = new JTextField();
         textAlpha = new JTextField();
@@ -139,20 +150,29 @@ public class SimulationMask extends JPanel {
 
 
         // Create ActionListener for algorithms JComboBox
-//        ActionListener algorithmSelectionListener = new ActionListener() {
-//            @Override
-//            public void actionPerformed(ActionEvent e) {
-//                if (e.getActionCommand().equals("changeAlg")) {
-//                    ControlerConfigGroup.RoutingAlgorithmType selectedAlgorithm = (ControlerConfigGroup.RoutingAlgorithmType) algorithms.getSelectedItem();
-//                    // Perform actions with the selected algorithm here
-//                    // For example, you can print it:
-//                    algorithmType = selectedAlgorithm.toString();
-//                    saveAlgorithmRoutingTypeToFile();
-//
-//                    System.out.println("Selected algorithm: " + selectedAlgorithm);
-//                }
-//            }
-//        };
+        acoTypeBox.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                    var heuristicTypeSelectedItem = acoTypeBox.getSelectedItem();
+                    // Perform actions with the selected algorithm here
+                    // For example, you can print it:
+                    var heuristicTypeString = heuristicTypeSelectedItem.toString();
+                    if (heuristicTypeString.equals("VARIANT_1")) {
+                        textEvaporationRate.setText("0.4");
+                        textPheromoneConstant.setText("10.0");
+                        textAlpha.setText("2.0");
+                        textBeta.setText("1.0");
+                        textQ.setText("10.0");
+                    }
+                    else if (heuristicTypeString.equals("VARIANT_2")) {
+                        textEvaporationRate.setText("0.9");
+                        textPheromoneConstant.setText("10.0");
+                        textAlpha.setText("1.0");
+                        textBeta.setText("4.0");
+                        textQ.setText("1.0");
+                    }
+                }
+        });
 
 
         itPanel.add(this.algorithms);
@@ -235,7 +255,7 @@ public class SimulationMask extends JPanel {
                         SwingWorker<String, Void> worker = new SwingWorker<String, Void>() {
 
                             @Override
-                            protected String doInBackground() {
+                            protected String doInBackground() throws JsonProcessingException {
                                 Config config = SimulationMask.this.controller
                                         .getScenario().getConfig();
 
@@ -271,7 +291,7 @@ public class SimulationMask extends JPanel {
                                                 OutputDirectoryHierarchy.OverwriteFileSetting.overwriteExistingFiles :
                                                 OutputDirectoryHierarchy.OverwriteFileSetting.failIfDirectoryExists);
 
-
+                                startTime = LocalDateTime.now();
                                 matsimController.run();
 
                                 SimulationMask.this.controller
@@ -285,7 +305,10 @@ public class SimulationMask extends JPanel {
                                 SimulationMask.this.setCursor(Cursor
                                         .getDefaultCursor());
                                 SimulationMask.this.btRun.setEnabled(true);
-
+                                endTime = LocalDateTime.now();
+                                System.out.println("Czas rozpoczecia: " + startTime);
+                                System.out.println("Czas zakończenia: " + endTime);
+                                System.out.println("Czas generowania " + Duration.between(startTime, endTime));
                             }
                         };
                         worker.execute();
@@ -313,10 +336,12 @@ public class SimulationMask extends JPanel {
         String matsimSP = this.controller.getScenarioPath();
         this.labelConfigName.setText(matsimSP);
         this.configFile = this.controller.getMatsimConfigFile();
-        this.textFirstIteration.setText(config.getModule("controler").getValue(
-                "firstIteration"));
-        this.textLastIteration.setText(config.getModule("controler").getValue(
-                "lastIteration"));
+//        this.textFirstIteration.setText(config.getModule("controler").getValue(
+//                "firstIteration"));
+//        this.textLastIteration.setText(config.getModule("controler").getValue(
+//                "lastIteration"));
+        this.textFirstIteration.setText(String.valueOf(0));
+        this.textLastIteration.setText(String.valueOf(19));
         this.textFirstIteration.setEnabled(true);
         this.textLastIteration.setEnabled(true);
         this.btRun.setEnabled(true);
@@ -341,6 +366,7 @@ public class SimulationMask extends JPanel {
         parameters.put("q", textQ.getText());
         parameters.put("runId", runId.toString());
 
+
         // Write the JSON object to the specified file path
         try (FileWriter file = new FileWriter(filePath)) {
             file.write(parameters.toJSONString());
@@ -351,7 +377,7 @@ public class SimulationMask extends JPanel {
     }
 
 
-    private void saveAlgorithmRoutingTypeToFile(UUID runId) {
+    private void saveAlgorithmRoutingTypeToFile(UUID runId) throws JsonProcessingException {
         try {
             Files.createDirectories(Paths.get("/home/jan/aaevacuation-config"));
         } catch (IOException e) {
@@ -362,6 +388,12 @@ public class SimulationMask extends JPanel {
         JSONObject parameters = new JSONObject();
         parameters.put("routingAlgorithmType", algorithmType);
         parameters.put("runId", runId.toString());
+        ObjectMapper mapper = new ObjectMapper();
+        mapper.registerModule(new JavaTimeModule());
+        mapper.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+        String now = mapper.writeValueAsString(LocalDateTime.now());
+        parameters.put("start", now);
+
         // Write the JSON object to the specified file path
         try (FileWriter file = new FileWriter(filePath)) {
             file.write(parameters.toJSONString());

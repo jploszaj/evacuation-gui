@@ -163,6 +163,9 @@ public class ScenarioGenerator {
 		this.matsimConfig.strategy().addParam("ModuleDisableAfterIteration_1", "75");
 		this.matsimConfig.strategy().addParam("maxAgentPlanMemorySize", "3");
 		this.matsimConfig.strategy().addParam("Module_1", "ReRoute");
+
+		this.matsimConfig.strategy().addParam("ModuleProbability_1", "1");
+//
 		this.matsimConfig.strategy().addParam("ModuleProbability_1", "0.1");
 		this.matsimConfig.strategy().addParam("Module_2", "ChangeExpBeta");
 		this.matsimConfig.strategy().addParam("ModuleProbability_2", "0.9");
